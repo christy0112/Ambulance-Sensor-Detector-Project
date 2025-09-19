@@ -1,0 +1,73 @@
+import java.util.Random;
+import com.fazecast.jSerialComm.SerialPort;
+
+class AmbulanceSensor {
+    private double soundLevel;
+    private double distance;
+    public AmbulanceSensor(double soundLevel, double distance) {
+        this.soundLevel = soundLevel;
+        this.distance = distance;
+    }
+    public boolean detectAmbulance() {
+        return soundLevel > 80 && distance < 100;
+    }
+    public double getSoundLevel() { return soundLevel; }
+    public double getDistance() { return distance; }
+}
+
+class TrafficController {
+    public void handleAmbulanceDetected() {
+        System.out.println("🚨 Ambulance detected! Turning traffic light GREEN...");
+    }
+    public void handleNoAmbulance() {
+        System.out.println("✅ No ambulance detected. Normal traffic flow.");
+    }
+}
+
+class ArduinoConnector {
+    private SerialPort port;
+    public ArduinoConnector(String portName) {
+        port = SerialPort.getCommPort(portName);
+        port.setComPortParameters(9600, 8, 1, 0);
+        port.setComPortTimeouts(SerialPort.TIMEOUT_WRITE_BLOCKING, 0, 0);
+        if (port.openPort()) System.out.println("✅ Connected to Arduino on " + portName);
+        else System.out.println("❌ Failed to connect to Arduino.");
+    }
+    public void sendCommand(char c) {
+        try {
+            port.getOutputStream().write(c);
+            port.getOutputStream().flush();
+        } catch (Exception e) { e.printStackTrace(); }
+    }
+    public void close() { port.closePort(); }
+}
+
+public class AmbulanceSensorSystem {
+    public static void main(String[] args) {
+        Random random = new Random();
+        TrafficController controller = new TrafficController();
+        ArduinoConnector arduino = new ArduinoConnector("COM3");
+
+        for (int i = 1; i <= 5; i++) {
+            double sound = 60 + random.nextDouble() * 50;
+            double distance = random.nextDouble() * 200;
+            AmbulanceSensor sensor = new AmbulanceSensor(sound, distance);
+
+            System.out.printf("\n📡 Sensor Reading %d:\n", i);
+            System.out.printf("Sound Level: %.2f dB | Distance: %.2f m\n",
+                              sensor.getSoundLevel(), sensor.getDistance());
+
+            if (sensor.detectAmbulance()) {
+                controller.handleAmbulanceDetected();
+                arduino.sendCommand('G');
+            } else {
+                controller.handleNoAmbulance();
+                arduino.sendCommand('N');
+            }
+
+            try { Thread.sleep(2000); } catch (InterruptedException e) {}
+        }
+        arduino.close();
+        System.out.println("✅ Simulation complete. Port closed.");
+    }
+}
